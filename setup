@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# setup Tank Repeater mechanism
+# NMEA2000 tank senders that report multiple tanks appear as a single tank in VenusOS
+# and ends up being displayed as a constantly changing set of values (one set for each tank)
+# The Tank Repeater splits the incoming tank into separate dBus services
+# and hides the original, producing stable display
+#
+# When running from the command line this script asks the user a serise of questions about
+# what needs to be done
+# When run from reinstallMods during system boot, there is no user interface and this script
+# gets its parameters from a set of "flag files" set when run manually the command line
+
+# This script makes use of SetupHelper, a separate package to streamline code in this script
+# and automate reinstallation following a Venus software update which overwrites the modifications
+# made here. SetupHelper must be installed before running this script.
+
+# Venus files that need to be updated to activeate this package
+qmlDir=/opt/victronenergy/gui/qml
+overviewMobileFile="$qmlDir/OverviewMobile.qml"
+reasonMessageFile="$qmlDir/SystemReasonMessage.qml"
+tileTankFile="$qmlDir/TileTank.qml"
+
+# log file for this package (if any)
+# leave null ("") if there isn't one
+packageLogFile="/var/log/TankRepeater/current"
+
+actionText=""
+
+#### following lines incorporate SetupHelper utilities into this script
+# Refer to the SetupHelper ReadMe file for details.
+    
+source "/data/SetupHelper/CommonResources"
+
+if [ $scriptAction == 'EXIT' ] ; then
+    exit
+fi
+
+checkFileSets
+
+#### end of lines to include SetupHelper
+
+#### running manually and OK to proceed - prompt for input
+if [ $scriptAction == 'NONE' ] ; then
+    echo
+    echo "The Tank Repeater provides a stable display for"
+    echo "NMEA2000 tank systems that report multiple tanks"
+    echo
+    echo "  Install and activate (i)"
+    echo "  Uninstall (u) and restores all files to stock"
+    echo "  Quit (q) without further action"
+    echo "  Display setup log (s) outputs the last 100 lines of the log"
+    if [ ! -z $packageLogFile ]; then
+        echo "  Display package log (l) outputs the last 100 lines of the log"
+    fi
+
+    standardActionPrompt
+
+    # prompt for remaining parameters needed for activation
+    if [ $scriptAction == 'INSTALL' ]; then
+        echo
+        echo "The Enhanced overview includes the following changes:"
+        echo "  1) Hides the original tank (changing values)"
+        echo "  2) Tiles are arranged to more cloesly follow the power flow through the system"
+        echo "  3) Voltage, current and frequency values are added to the AC in and out tiles"
+        echo "  4) Battery remaining time is added to the Battery tile"
+        echo "  5) ESS reason codes are replaced with a text version to make them more meaningful"
+        echo "  6) ESS reason text and other notifications are combined into a single "marquee" line"
+        echo "  7) The pump switch is hidden unless the Venus relay is configured for pump control"
+        echo "  8) AC Mode switch includes INVERTER ONLY mode"
+        echo
+        
+        yesNoPrompt "Do you wish to install the Enhanced Mobile Overview Page? (y/n): "
+        if $yesResponse ; then
+            touch $scriptDir/useEnhancedOverview
+       else
+            rm -f $scriptDir/useEnhancedOverview
+        fi
+        
+        echo
+        echo "Tank Tile enhancements:"
+        echo "  The updated TileTank.qml provides the following changes:"
+        echo "  1) Bar text turns red and indicates NO RESPONSE for sensor connection errors"
+        echo "  2) Color of bar turns red on limits instead of blinking"
+        echo "  3) Color of bar text turns red when bar lenght is too short to be seen"
+        echo "  4) If space is limited, bar graph height and associated text are reduced"
+        echo "  5) Added custom tank name"
+        echo "  6) Added absolute quantity (e.g., gallons) next to %"
+        echo
+
+        yesNoPrompt "Do you wish to install the OPTIONAL Tank Tile changes (y/n): "
+        if $yesResponse ; then
+            touch $scriptDir/useEnhancedTankTile
+       else
+            rm -f $scriptDir/useEnhancedTankTile
+        fi
+    fi
+fi
+
+#### installing
+# get parameters from files
+if [ $scriptAction == 'INSTALL' ] ; then
+    # get parameters from files
+    if [ -f $scriptDir/useEnhancedOverview ] ; then
+        useEnhancedOverview=true
+    else
+        useEnhancedOverview=false
+    fi
+    # get parameters from files
+    if [ -f $scriptDir/useEnhancedTankTile ] ; then
+        useEnhancedTankTile=true
+    else
+        useEnhancedTankTile=false
+    fi
+fi
+
+#### here to do the actual work
+
+if [ $scriptAction == 'INSTALL' ] ; then
+    logMessage "++ Installing repeater"
+
+
+    # save original GUI files
+    if $useEnhancedOverview ; then
+        logMessage "installing Enhanced Mobile Overview"
+        updateActiveFile "EnhancedOverviewMobile.qml" "$overviewMobileFile"
+        logMessage "installing System Reason Message"
+        updateActiveFile "$reasonMessageFile"
+    # modify the stock Mobile Overview to just hide the See Level dBus object
+    else
+        logMessage "installing updated Mobile Overview"
+        updateActiveFile "$overviewMobileFile"
+        # restore System Reason Message from previous install if it exists
+        restoreActiveFile "$reasonMessageFile"
+    fi
+    # install enhanced Tank Tile
+    if $useEnhancedTankTile ; then
+        logMessage "installing enhanced Tank Tile"
+        updateActiveFile "$tileTankFile"
+    else
+        # restore origial tank file from previous install if it exists
+        restoreActiveFile "$tileTankFile"
+    fi
+
+    service="/service/TankRepeater"
+    if [ ! -e "$service" ]; then
+        logMessage "starting repeater service"
+        ln -s $scriptDir/service "$service"
+    elif ! $runningAtBoot; then
+        logMessage "restarting repeater service"
+        svc -t "$service"
+    fi
+    if $filesUpdated ; then
+        restartGui=true
+    fi
+fi
+
+# #### uninstalling - check scriptAction again
+# if an install step failed package needs to be removed
+if [ $scriptAction == 'UNINSTALL' ] ; then
+    logMessage "++ Uninstalling repeater" | tai64n >> $packageLogFile
+
+    # remove and stop repeater service
+    # exclude process names that include this script's PID ($$)
+    # so this startup script isn't killed in the process!
+    if [ -e /service/TankRepeater ]; then
+        logMessage "removing repeater service"
+        rm -rf /service/TankRepeater
+        ps -l | grep TankRepeater | grep -v -e grep -e $$  | awk '{print $3}' | xargs kill > /dev/null 2>&1
+    fi
+
+    dBusService="/Settings/Devices/TankRepeater/IncomingTankService"
+    serviceName=$(dbus -y com.victronenergy.settings "$dBusService" GetValue)
+    if [ $serviceName != "''" ] ; then
+        logMessage unhiding original Tank dBus service
+        dbus -y com.victronenergy.settings "$dBusService" SetValue "" > /dev/null 2>&1
+        restartGui=true
+    fi
+
+    restoreActiveFile "$overviewMobileFile"
+    restoreActiveFile "$tileTankFile"
+    if $filesUpdated ; then
+        restartGui=true
+    fi
+    # ignore system reasion message removal in decision to restart GUI
+    restoreActiveFile "$reasonMessageFile"
+fi
+
+# thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
+endScript
+
+

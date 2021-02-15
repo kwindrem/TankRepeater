@@ -1,0 +1,153 @@
+This software will allow the SeeLevel NMEA2000 tank sensor system to be used with
+Victron Energy Venus devices (Color Control GX, Venus Gx, etc.).
+Functionality has been verified on Venus version 2.33, 2.42, 2.52, 2.54 - 58 and 2.60. Recent changes made setup independent of version so it is likely the GUI changes will work with many more system versions.
+
+Setup:
+
+You will need root access to the Venus device. Instructions can be found here:
+https://www.victronenergy.com/live/ccgx:root_access
+The root password needs to be reentered following a Venus update.
+Setting up an authorization key (see documentation referenced above) will save time and avoid having to reset the root password after each update.
+
+A setup script is provided that supports the following actions:
+    Activate installs GUI modificaitons then starts the repeater
+    Uninstall deactivates the repeater, restors GUI to stock and removes all repeater files
+
+You have the choice of installing an OPTIONAL enhanced Mobile Overview page. Enhancements:
+
+1) Tiles are arranged to more cloesly follow the power flow through the system.
+2) Voltage, current and frequency values are added to the AC in and out tiles.
+3) Battery remaining time is added to the Battery tile
+4) ESS reason codes are replaced with a text version to make them more meaningful
+5) ESS reason text and other notifications are combined into a single "marquee" line
+6) The pump switch is hidden unless the Venus relay is configured for pump control. The extra space is available for tanks
+7) AC Mode switch includes INVERTER ONLY mode
+
+You also have the choice to install an OPTIONAL enhanced Tank Tile. Enhancements:
+
+1) Tank information is displayed in a box sized so that all tanks fill the tanks column. Box height shrinks as tanks are added.
+    To further compress the tile, the text size is reduced and the dividing line below the title disappears.
+    With the smallest height tile, there is room for 6 tanks (compared to 4 with the stock tile). One additional tile will fit if the pump switch is not shown.
+    Unfortunately, with more than 6 (or 7) tanks, the display still bunches up.
+    One tank will only fill half the column to avoid an odd look of an overly tall tile.
+2) The tank bar graph turns red when the tank is within 20% of full (for waste and black tanks) and 20% of empty for other tanks. This provides a visual alert to a situation that needs attention soon. In addition, tanks that are very close to empty show now bar so the red warning could easily be missed. In this case, the bar graph's text indicting tank fullness also turns red.
+3) The GUI reports errors for tank sensors as follows":
+  If a tank is not responding "NO RESPONSE" will replace level percentage
+  Garnet says they report sensor errors with out of range tank levels, however the CAN-bus driver in Venus OS apparently
+  truncates these values. There is code to display sensor errors (short, open, etc.) however I never saw any < 0 or > 100
+4) Previous implementation of the TANKS display blinked some information. The blinking has been removed and replaced by color changes.
+5) Displays custom tank names.
+6) Added absolute fluid quantity next to the percentage. E.g., a 50% fill 30 gallon tank will be shown as 50% 15gal (or other volume unit).
+
+The repeater will work with the stock tank tile, or the modified tank tile will work without the Repeater.
+
+Uninstalling will unhide the SeeLevel tank and return the Venus Device to it's stock configuration.
+
+A setup option is also provided to display the Repeater log without making any changes.
+
+The GUI on the Venus device will be restarted at the end of setup.
+
+
+Configuration:
+
+The program attempts to discover the SeeLevel service name by looking for a com.victronenergy.tank service with a ProductId of 41312.
+If this is the proper ProductId, no configuration is necessary and the Mobile Overview screen should populate with the repeater tanks. If not, the default ProductId may need to be changed. (Other CanBus tank systems would have a different ProductId.)
+The ProductId can be changed using dbus-spy after the repeater is running. (Before the repeater has run the first time, the settings parameter will not exist.)
+
+To determine the correct ProductId, run dbus-spy on the Venus device and look for the multi-tank service that is cycling through Fluid Types.
+It will be something like: com.victronenergy.tank.socketcan_can0_di0_uc855
+Inspect that service and make note of the ProductId.
+If you need to change the ProductId, return to the main dbus-spy page and access the com.victronenergy.settings service
+Change /Settings/Devices/TankRepeater/IncomingTankProductId.
+(When the correct ProductId has been entered, the value of /Settings/Devices/TankRepeater/IncomingTankService should change to match the tank that needs to be split service.)
+
+You may need to exit the Mobile Overview screen, then come back to it in order for the tanks column to populate properly.
+
+The repeater can be disabled by setting /Settings/Devices/TankRepeater/IncomingTankProductId to -1. The repeater will still run but is completely benign in that state, including unhiding the SeeLevel tank tile that constanly switches tanks.
+
+Installation saves the GUI selections (via flag files /data/TankRepeater/useEnhanced...) for later reinstallation from 'reinstaller' which runs from rc scripts at boot time.
+
+File organization:
+
+The Repeater files are stored in /data/TankRepeater on Venus because the /data file system survives a software update (most other file systems are overwritten).
+
+All folders and files in this GitHub should be copied to the Venus device.
+    The file hierarchy must be preserved.
+
+One GUI file (OverviewMobile.qml) is modified or (replaced if the Enhanced Overview is selected).
+One file (TileTank.qml) is optionally replaced during setup.
+The original files are moved to files ending in .orig for easy uninstall in the future.
+The enhanced Mobile Overview page installs a new file to display ESS reason codes as text: SystemReasonMessage.qml
+
+Replacement files are stored in a set of folders named with the Venus OS version name. These are stored in 'FileSets'.
+There is a version folder for all suppored versions.
+If 'setup' detects a new version, a new version folder will be created.
+The contents will be populated automatically if the new version's files match those from a previous version.
+If there is no match, a warning is output and manual editing a new version will be required. 
+These modifications are typially simple by examining a previous replacement version.
+Some replacement files are independent of Venus OS version. These are stored in the 'FileSets' directory.
+
+This script makes use of "SetupHelper", a set of utilities and variables aimed at streamlining this script's code. 
+It also facilitates automatic reinstallation following a Venus software update.
+SetupHelper is provided as a separte GitHub repo and must be installed before running this setup script.
+Additional information is provided in that package's ReadMe.
+
+useEnhancedOverview and useEnhancedTankTile are flag files to control reinstallation.
+
+
+Background/operation:
+
+Venus software only supports one tank per CAN-bus device and SeeLevel reports up to 3 tanks on the same connection. The result is a constantly changing display as data. That is, the same tank tile would show fresh water status for a couple of seconds, then waste water then black water, etc. A stable display with separate tiles for each tank is necessary.
+
+In order to provide a set of stable tank displays, the user interface (aka GUI) must be modified to hide the actual SeeLevel information.  A Repeater process monitors the SeeLevel dBus service and "repeats" stable information to separate dBus services, one for each tank.
+
+When SeeLevel reports information for a specific tank, SeeLevelRepeater updates the Repeater's values with the latest from SeeLevel. The GUI displays only the Repeated tank information.
+
+To avoid screen clutter, the Repeater holds off creating dBus Repeater services until it detects tank information from SeeLevel. SeeLevel may report 1, 2 or 3 tanks so we only want to populate the TANKs column in the GUI with valid tanks. A tank that disappears while the system is running is displayed in the TANKs column as "NO RESPONSE". If the Venus device is reset, tanks that are no longer responding will not reappear. When the SeeLevel system is being set up, the installer should disable messaging for any tanks that don't exist, then reboot the Venus device. Refer to Garnet's documentation for the NEMA2000 version of their sensor which describes how to disable specific tanks.
+
+Innitially, I was told that SeeLevel reports one tank approximately every 1-2 seconds. A complete scan of all tanks takes up to 3-8 seconds. However I discovered tanks can be reported much more rapidly. Too fast actually for my original design, so it's been rewritten to use a dBus signal handler to process each tank (aka /FluidType), /Level and /Capacity update from the SeeLevel dBus object.
+
+While not tested with other tank sensors, SeeLevelRepeater may work with them as well. The NMEA2000 tank system would need to report multiple tanks on the same connection for the Repeater to be of value. The tank system's productId would most likely need to be entered manually using dbus-spy (see below).
+
+
+Debugging aids:
+
+You can view logs using the unix 'tail' command:
+
+GUI log:
+
+tail /var/log/gui/current | tai64nlocal
+
+SeeLevelRepeater log:
+
+tail /var/log/TankRepeater/current | tai64nlocal
+
+tai64nlocal converts the timestamp at the beginning of each log entry to a human readable date and time (as UTC/GMT because Venus runs with system local time set to UTC).
+
+dbus-spy can also be used to examine dBus services to aid in troubleshooting problems.
+
+
+New versions of Venus software:
+
+When Venus software is updated, the Repeaer will be reactivated automatically via the /data/rc.local mechanisim described above
+
+If you experience problems with the Mobile Overview page after a Venus software update, the Repeater will need to be updated. Until such time as the GitHub files are updated, you may need to revert to a previous verison of Venus software, or uninstall the Repeater.
+
+
+Hardware:
+
+This package relies on an NEMA2000 version of the Garnet SeeLevel sensor system. It will not work with the standard or RV-C versions. Garnet's number for this version is 709-N2K NLP. It MAY work with other NMEA2000 tank sensor systems that report multiple tanks.
+
+This version of the SeeLevel system uses a propriatary connector for the CAN-bus connection.
+This connector mates with the connector on the back of the SeeLevel control unit: 3M 37104-2165-000 FL 100
+And is available from DigiKey: https://www.digikey.com/product-detail/en/3m/37104-2165-000-FL-100/3M155844-ND/1238214
+
+A cable can be made up with this connector on one end and an RJ-45 on the other to plug into a VE.Can connector on the Venus device. You can alternatively make up a cable from this connector to a standard CAN-bus connector then use the VE.Can to CAN-bus adapter cable. If you are not using standard CAN-bus cabling, be sure to terminate the SeeLevel end of the cable, especially if it is long. I was able to crimp a 1/4 watt 120 ohm resister into the pins of the 3M connector along with the wires from the CAT 5/6 cable.
+
+I have included a PDF of the various pinouts. The 3M connector pins are numbered on the housing.
+
+You need to connect CAN-H, CAN-L and -Voltage (aka NET-C (V-), aka grond). I left +Voltage disconnected. Ground is required since the VE.Can connection on Venus is floating.
+
+
+I must give credit to Ben Brantley for providing his code that evolved into this package. You can find him on the Victron community forum.
+
