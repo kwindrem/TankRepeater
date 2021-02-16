@@ -10,6 +10,23 @@ which can then provide a stable set of values for each fluid type (tank).
 To avoid confusion, the original tank information is hidden on the Mobile Overview.
 However, that tank still appears in the Device List.
 
+
+You have the choice to install an OPTIONAL enhanced Tank Tile. Enhancements:
+
+1) Tank information is displayed in a box sized so that all tanks fill the tanks column. Box height shrinks as tanks are added.
+    To further compress the tile, the text size is reduced and the dividing line below the title disappears.
+    With the smallest height tile, there is room for 6 tanks (compared to 4 with the stock tile). One additional tile will fit if the pump switch is not shown.
+    Unfortunately, with more than 6 (or 7) tanks, the display still bunches up.
+    One tank will only fill half the column to avoid an odd look of an overly tall tile.
+2) The tank bar graph turns red when the tank is within 20% of full (for waste and black tanks) and 20% of empty for other tanks. This provides a visual alert to a situation that needs attention soon. In addition, tanks that are very close to empty show now bar so the red warning could easily be missed. In this case, the bar graph's text indicting tank fullness also turns red.
+3) The GUI reports errors for tank sensors as follows":
+  If a tank is not responding "NO RESPONSE" will replace level percentage
+  Garnet says they report sensor errors with out of range tank levels, however the CAN-bus driver in Venus OS apparently
+  truncates these values. There is code to display sensor errors (short, open, etc.) however I never saw any < 0 or > 100
+4) Previous implementation of the TANKS display blinked some information. The blinking has been removed and replaced by color changes.
+5) Displays custom tank names.
+6) Added absolute fluid quantity next to the percentage. E.g., a 50% fill 30 gallon tank will be shown as 50% 15gal (or other volume unit).
+
 This script should be run manually initally.
 It will then called from reinstallMods to reinstall functionality after a Venus update
 
@@ -58,10 +75,9 @@ The Repeater files are stored in /data/TankRepeater on Venus because the /data f
 All folders and files in this GitHub should be copied to the Venus device.
     The file hierarchy must be preserved.
 
-One GUI file (OverviewMobile.qml) is modified or (replaced if the Enhanced Overview is selected).
+One GUI file (OverviewMobile.qml) is replaced.
 One file (TileTank.qml) is optionally replaced during setup.
 The original files are moved to files ending in .orig for easy uninstall in the future.
-The enhanced Mobile Overview page installs a new file to display ESS reason codes as text: SystemReasonMessage.qml
 
 Replacement files are stored in a set of folders named with the Venus OS version name. These are stored in 'FileSets'.
 There is a version folder for all suppored versions.
@@ -76,7 +92,7 @@ It also facilitates automatic reinstallation following a Venus software update.
 SetupHelper is provided as a separte GitHub repo and must be installed before running this setup script.
 Additional information is provided in that package's ReadMe.
 
-useEnhancedOverview and useEnhancedTankTile are flag files to control reinstallation.
+useEnhancedTankTile is a flag file to control reinstallation.
 
 
 Background/operation:
