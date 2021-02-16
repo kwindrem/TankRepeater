@@ -1,52 +1,36 @@
-This software will allow the SeeLevel NMEA2000 tank sensor system to be used with
-Victron Energy Venus devices (Color Control GX, Venus Gx, etc.).
-Functionality has been verified on Venus version 2.33, 2.42, 2.52, 2.54 - 58 and 2.60. Recent changes made setup independent of version so it is likely the GUI changes will work with many more system versions.
+This software will allow a NMEA2000 tank system that reports multiple tanks
+to display properly
+
+The stock Venus code expects only a single tank from each tank system, 
+so it displays constantly changing values and fluids.
+
+A "TankRepeater" reads this changing information and breaks it out to separate information
+which can then provide a stable set of values for each fluid type (tank).
+
+To avoid confusion, the original tank information is hidden on the Mobile Overview.
+However, that tank still appears in the Device List.
+
+This script should be run manually initally.
+It will then called from reinstallMods to reinstall functionality after a Venus update
 
 Setup:
+
+Copy the entire repo from GitHub as a zip file to /data on the Venus device
+then unzip it. This should populate /data/VeCanSetup with the package contents.
+
+You must also install SetupHelper from here:
+
+https://github.com/kwindrem/Victron-VeusOs-Setup-Helper
+
+Once both packages are installed run setup and follow the prompts.
+./setup
 
 You will need root access to the Venus device. Instructions can be found here:
 https://www.victronenergy.com/live/ccgx:root_access
 The root password needs to be reentered following a Venus update.
 Setting up an authorization key (see documentation referenced above) will save time and avoid having to reset the root password after each update.
 
-A setup script is provided that supports the following actions:
-    Activate installs GUI modificaitons then starts the repeater
-    Uninstall deactivates the repeater, restors GUI to stock and removes all repeater files
-
-You have the choice of installing an OPTIONAL enhanced Mobile Overview page. Enhancements:
-
-1) Tiles are arranged to more cloesly follow the power flow through the system.
-2) Voltage, current and frequency values are added to the AC in and out tiles.
-3) Battery remaining time is added to the Battery tile
-4) ESS reason codes are replaced with a text version to make them more meaningful
-5) ESS reason text and other notifications are combined into a single "marquee" line
-6) The pump switch is hidden unless the Venus relay is configured for pump control. The extra space is available for tanks
-7) AC Mode switch includes INVERTER ONLY mode
-
-You also have the choice to install an OPTIONAL enhanced Tank Tile. Enhancements:
-
-1) Tank information is displayed in a box sized so that all tanks fill the tanks column. Box height shrinks as tanks are added.
-    To further compress the tile, the text size is reduced and the dividing line below the title disappears.
-    With the smallest height tile, there is room for 6 tanks (compared to 4 with the stock tile). One additional tile will fit if the pump switch is not shown.
-    Unfortunately, with more than 6 (or 7) tanks, the display still bunches up.
-    One tank will only fill half the column to avoid an odd look of an overly tall tile.
-2) The tank bar graph turns red when the tank is within 20% of full (for waste and black tanks) and 20% of empty for other tanks. This provides a visual alert to a situation that needs attention soon. In addition, tanks that are very close to empty show now bar so the red warning could easily be missed. In this case, the bar graph's text indicting tank fullness also turns red.
-3) The GUI reports errors for tank sensors as follows":
-  If a tank is not responding "NO RESPONSE" will replace level percentage
-  Garnet says they report sensor errors with out of range tank levels, however the CAN-bus driver in Venus OS apparently
-  truncates these values. There is code to display sensor errors (short, open, etc.) however I never saw any < 0 or > 100
-4) Previous implementation of the TANKS display blinked some information. The blinking has been removed and replaced by color changes.
-5) Displays custom tank names.
-6) Added absolute fluid quantity next to the percentage. E.g., a 50% fill 30 gallon tank will be shown as 50% 15gal (or other volume unit).
-
-The repeater will work with the stock tank tile, or the modified tank tile will work without the Repeater.
-
 Uninstalling will unhide the SeeLevel tank and return the Venus Device to it's stock configuration.
-
-A setup option is also provided to display the Repeater log without making any changes.
-
-The GUI on the Venus device will be restarted at the end of setup.
-
 
 Configuration:
 
