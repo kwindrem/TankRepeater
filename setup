@@ -17,7 +17,6 @@
 qmlDir=/opt/victronenergy/gui/qml
 overviewMobileFile="$qmlDir/OverviewMobile.qml"
 reasonMessageFile="$qmlDir/SystemReasonMessage.qml"
-tileTankFile="$qmlDir/TileTank.qml"
 
 # log file for this package (if any)
 # leave null ("") if there isn't one
@@ -45,30 +44,6 @@ if [ $scriptAction == 'NONE' ] ; then
     echo "NMEA2000 tank systems that report multiple tanks"
 
     standardActionPrompt
-    if [ $scriptAction == 'INSTALL' ]; then
-        scriptAction='INSTALL'
-        echo
-        echo "Tank Tile enhancements:"
-        echo "  The updated TileTank.qml provides the following changes:"
-        echo "  1) Bar text turns red and indicates NO RESPONSE for sensor connection errors"
-        echo "  2) Color of bar turns red on limits instead of blinking"
-        echo "  3) Color of bar text turns red when bar lenght is too short to be seen"
-        echo "  4) If space is limited, bar graph height and associated text are reduced"
-        echo "  5) Added custom tank name"
-        echo "  6) Added absolute quantity (e.g., gallons) next to %"
-        echo
-        response=""
-        while [ -z $response ] || ! ( [ $response == 'y' ] || [ $response == 'n' ] )
-        do
-            /bin/echo -n "Do you wish to install the OPTIONAL Tank Tile changes (y/n): "
-            read response
-        done
-        if [ $response == 'y' ]; then
-            touch $scriptDir/useEnhancedTankTile
-        else
-            rm -f $scriptDir/useEnhancedTankTile
-        fi
-    fi
 fi
 
 #### here to do the actual work
@@ -77,12 +52,6 @@ if [ $scriptAction == 'INSTALL' ] ; then
     logMessage "++ Installing repeater"
 
     updateActiveFile "$overviewMobileFile"
-    if [ -f $scriptDir/useEnhancedTankTile ] ; then
-        updateActiveFile "$tileTankFile"
-    # restore tank file in case install was run again manually
-    else
-        restoreActiveFile "$tileTankFile"
-    fi
 
     service="/service/TankRepeater"
     if [ ! -e "$service" ]; then
@@ -120,7 +89,6 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
     fi
 
     restoreActiveFile "$overviewMobileFile"
-    restoreActiveFile "$tileTankFile"
 fi
 
 if $filesUpdated ; then
