@@ -82,7 +82,7 @@ from settingsdevice import SettingsDevice
 # tank number is appended when the service is created
 
 RepeaterServiceName = 'com.victronenergy.tank.repeater'
-ProductName = 'NMES2000 Multiple Tank %d Repeater'
+ProductName = 'NMEA2000 Multiple Tank Repeater %d'
 
 # timer periods and watchdog timeout are defined here for convenience
 
