@@ -69,7 +69,7 @@ fi
 # #### uninstalling - check scriptAction again
 # if an install step failed package needs to be removed
 if [ $scriptAction == 'UNINSTALL' ] ; then
-    logMessage "++ Uninstalling repeater" | tai64n >> $packageLogFile
+    logMessage "++ Uninstalling repeater"
 
     # remove and stop repeater service
     # exclude process names that include this script's PID ($$)

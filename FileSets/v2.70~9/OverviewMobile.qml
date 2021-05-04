@@ -1,7 +1,8 @@
 // This file has been modified to support NMEA2000 sensors that report multiple tanks
 // The tank column will hide the real sensor's dBus service because it's information changes
 // Search for // TANK REPEATER to find changes
-// Also, find optional changes in TileText.qml installed as part of GuiMods
+// Also, find optional changes in TileText.qml which is part of the GuiMods package
+
 import QtQuick 1.1
 import com.victron.velib 1.0
 import "utils.js" as Utils
@@ -250,18 +251,30 @@ OverviewPage {
 		property int tileHeight: Math.ceil(height / Math.max(count, 2))
 		width: 134
 		interactive: false // static tiles
-
 		model: tanksModel
 		delegate: TileTank {
 			width: tanksColum.width
 			height: tanksColum.tileHeight
 			pumpBindPrefix: root.pumpBindPreffix
+			compact: tanksModel.count > (pumpButton.pumpEnabled ? 4 : 5)
+			Connections {
+				target: scrollTimer
+				onTriggered: doScroll()
+			}
 		}
 
 		anchors {
 			top: root.top
-			bottom: acModeButton.top
+			bottom: pumpButton.pumpEnabled ? acModeButton.top : acModeButton.bottom
 			right: root.right
+		}
+
+		// Synchronise tank name text scroll start
+		Timer {
+			id: scrollTimer
+			interval: 15000
+			repeat: true
+			running: root.active && tanksModel.count > 4
 		}
 
 		Tile {
@@ -292,7 +305,7 @@ OverviewPage {
 		}
 
 		Keys.onRightPressed: {
-			if (buttonIndex < 2)
+			if (buttonIndex < (pumpButton.pumpEnabled ? 2 : 1))
 				buttonIndex++
 
 			event.accepted = true
@@ -317,7 +330,7 @@ OverviewPage {
 		bind: Utils.path(vebusPrefix, "/Ac/ActiveIn/CurrentLimit")
 		title: qsTr("AC CURRENT LIMIT")
 		color: containsMouse && !editMode ? "#d3d3d3" : "#A8A8A8"
-		width: show ? 160 : 0
+		width: pumpButton.pumpEnabled ? 160 : 173
 		fontPixelSize: 14
 		unit: "A"
 		readOnly: currentLimitIsAdjustable.value !== 1 || numberOfMultis > 1
@@ -370,7 +383,7 @@ OverviewPage {
 
 		editable: true
 		readOnly: !modeIsAdjustable.valid || modeIsAdjustable.value !== 1 || numberOfMultis > 1
-		width: 160
+		width: pumpButton.pumpEnabled ? 160 : 173
 		height: 45
 		color: acModeButtonMouseArea.containsPressed ? "#d3d3d3" : "#A8A8A8"
 		title: qsTr("AC MODE")
@@ -491,6 +504,8 @@ OverviewPage {
 		property int value: 0
 		property bool reset: false
 		property bool pumpEnabled: pumpRelay.value === 3
+
+		show: pumpEnabled
 		isCurrentItem: (buttonIndex == 2)
 		focus: root.active && isCurrentItem
 
