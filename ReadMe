@@ -47,12 +47,12 @@ https://www.victronenergy.com/live/ccgx:root_access
 The root password needs to be reentered following a Venus update.
 Setting up an authorization key (see documentation referenced above) will save time and avoid having to reset the root password after each update.
 
-Uninstalling will unhide the SeeLevel tank and return the Venus Device to it's stock configuration.
+Uninstalling will unhide the original tank and return the Venus Device to it's stock configuration.
 
 Configuration:
 
 The program attempts to discover the SeeLevel service name by looking for a com.victronenergy.tank service with a ProductId of 41312.
-If this is the proper ProductId, no configuration is necessary and the Mobile Overview screen should populate with the repeater tanks. If not, the default ProductId may need to be changed. (Other CanBus tank systems would have a different ProductId.)
+If this is the proper ProductId, no configuration is necessary and the GUI should populate with the repeater tanks. If not, the default ProductId may need to be changed. (Other CanBus tank systems would have a different ProductId.)
 The ProductId can be changed using dbus-spy after the repeater is running. (Before the repeater has run the first time, the settings parameter will not exist.)
 
 To determine the correct ProductId, run dbus-spy on the Venus device and look for the multi-tank service that is cycling through Fluid Types.
@@ -76,7 +76,6 @@ All folders and files in this GitHub should be copied to the Venus device.
     The file hierarchy must be preserved.
 
 One GUI file (OverviewMobile.qml) is replaced.
-One file (TileTank.qml) is optionally replaced during setup.
 The original files are moved to files ending in .orig for easy uninstall in the future.
 
 Replacement files are stored in a set of folders named with the Venus OS version name. These are stored in 'FileSets'.
@@ -101,11 +100,11 @@ Venus software only supports one tank per CAN-bus device and SeeLevel reports up
 
 In order to provide a set of stable tank displays, the user interface (aka GUI) must be modified to hide the actual SeeLevel information.  A Repeater process monitors the SeeLevel dBus service and "repeats" stable information to separate dBus services, one for each tank.
 
-When SeeLevel reports information for a specific tank, SeeLevelRepeater updates the Repeater's values with the latest from SeeLevel. The GUI displays only the Repeated tank information.
+When SeeLevel reports information for a specific tank, TankRepeater updates the Repeater's values with the latest from SeeLevel. The GUI displays only the Repeated tank information.
 
-To avoid screen clutter, the Repeater holds off creating dBus Repeater services until it detects tank information from SeeLevel. SeeLevel may report 1, 2 or 3 tanks so we only want to populate the TANKs column in the GUI with valid tanks. A tank that disappears while the system is running is displayed in the TANKs column as "NO RESPONSE". If the Venus device is reset, tanks that are no longer responding will not reappear. When the SeeLevel system is being set up, the installer should disable messaging for any tanks that don't exist, then reboot the Venus device. Refer to Garnet's documentation for the NEMA2000 version of their sensor which describes how to disable specific tanks.
+To avoid screen clutter, TankRepeater holds off creating dBus Repeater services until it detects tank information from SeeLevel. SeeLevel may report 1, 2 or 3 tanks so we only want to populate the TANKs column in the GUI with valid tanks. A tank that disappears while the system is running is displayed in the TANKs column as "NO RESPONSE". If the Venus device is reset, tanks that are no longer responding will not reappear. When the SeeLevel system is being set up, the installer should disable messaging for any tanks that don't exist, then reboot the Venus device. Refer to Garnet's documentation for the NEMA2000 version of their sensor which describes how to disable specific tanks.
 
-Innitially, I was told that SeeLevel reports one tank approximately every 1-2 seconds. A complete scan of all tanks takes up to 3-8 seconds. However I discovered tanks can be reported much more rapidly. Too fast actually for my original design, so it's been rewritten to use a dBus signal handler to process each tank (aka /FluidType), /Level and /Capacity update from the SeeLevel dBus object.
+Innitially, I was told that SeeLevel reports one tank approximately every 1-2 seconds. A complete scan of all tanks takes up to 3-8 seconds. However I discovered tanks can be reported much more rapidly. Too fast actually for polling for information, so dBus signal handlers are used to process each tank (aka /FluidType), /Level and /Capacity update from the SeeLevel dBus object.
 
 While not tested with other tank sensors, SeeLevelRepeater may work with them as well. The NMEA2000 tank system would need to report multiple tanks on the same connection for the Repeater to be of value. The tank system's productId would most likely need to be entered manually using dbus-spy (see below).
 
@@ -118,7 +117,7 @@ GUI log:
 
 tail /var/log/gui/current | tai64nlocal
 
-SeeLevelRepeater log:
+TankRepeater log:
 
 tail /var/log/TankRepeater/current | tai64nlocal
 
