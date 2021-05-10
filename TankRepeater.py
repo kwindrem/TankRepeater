@@ -151,6 +151,7 @@ class Repeater:
     Level = 0
     Capacity = 0
     UpdateReceived = False
+    _updateHasRun = False
 
     TimeoutCount = 0
 
@@ -161,9 +162,9 @@ class Repeater:
 	self.RepeaterTimeout = RepeaterTimeout
 	self.TimeoutCount = 0
 
-# set up unique dBus connection
-# The Repeater dBus service is not created until incoming tank messages for that tank are received
+# set up unique dBus connection and dBus service
 	self.DbusBus = dbusconnection()
+	self._createDbusService()
 
 # gobject.timeout_add uses a 1 mS timer (1000 ticks per second)
 # _update is called periodically with the following call
@@ -243,21 +244,19 @@ class Repeater:
 # do background processing for this repeater
 # CheckIncomingTank updates Repeater local variables
 # those values are passed to the dBus service as a background operation here
-# the dBus service is created here when the first update for this tank is received
 # the /Connected flag is managed here: True if updates are being received,
 # False if no updates have been received in the timeout period
 
     def _update(self):
 
+# skip processing on first pass to avoid issues with dBus service not fully innitialized
+	if self._updateHasRun == False:
+		self._updateHasRun = True
+		return True
+
 # update has been received - create dBus service if not done previously
 # then update dBus values from local storage
 	if self.UpdateReceived:
-		if self.DbusService == None:
-			self._createDbusService ()
-# do nothing this pass if just created dBus service
-# update flag isn't cleared so the update is processed next pass
-			return True
-
 # update servcie values from local storage
 		self.DbusService['/Level'] = self.Level
 		self.DbusService['/Capacity'] = self.Capacity
@@ -340,8 +339,9 @@ TheBus = None
 
 # RepeaterList provides persistent storage for a repeater instance so that it may be called from CheckIncomingTank 
 # This list is indexed by fluid type and needs to be expanded if additional fluid types are added in the future
+# The list is bigger than the existing 7 defined fluid types to allow for expansion
 
-RepeaterList =  [None,  None, None, None, None, None ]
+RepeaterList =  [None,  None, None, None, None, None, None, None, None, None, None, None, None, None ]
 
 
 # check to see if the incoming tank dBus object exists
@@ -444,7 +444,10 @@ def CheckIncomingTank():
 # update the repeater's level and capacity values from the poll
 # range check tank before using it as an array index
 	if tank >= 0 and tank < len(RepeaterList) and tank == tank2:
-		RepeaterList [tank].UpdateRepeater (level, capacity)
+# instantiate repeater if it does not yet exist
+	    if (RepeaterList [tank] == None):
+		RepeaterList [tank] = Repeater (tank)
+	    RepeaterList [tank].UpdateRepeater (level, capacity)
 
 # wait 10 passes before doing anything to give signals a chance to be received
 # if level signals are not being received but tank number signals ARE being received
@@ -495,7 +498,10 @@ def FluidTypeHandler (changes, sender):
 # Update the repeater based on PREVIOUS tank, level and capacity before saving the current tank for next call
 # range check tank and level before processing
 	if LastTank >= 0 and LastTank < len(RepeaterList):
-		RepeaterList [LastTank].UpdateRepeater (LastLevel, LastCapacity)
+# instantiate repeater if it does not yet exist
+	    if (RepeaterList [LastTank] == None):
+		RepeaterList [LastTank] = Repeater (LastTank)
+	    RepeaterList [LastTank].UpdateRepeater (LastLevel, LastCapacity)
 
 # save new fluid type for processing on next call to this handler
 	LastTank = tank
@@ -573,12 +579,6 @@ def main():
 	DBusGMainLoop(set_as_default=True)
 
         logging.info (">>>>>>>>>>>>>>>> TankRepeater Starting <<<<<<<<<<<<<<<<")
-
-# create repeaters for all tanks
-# dBus services are NOT created at this time to save GUI clutter
-	for tank in range (len(RepeaterList)):
-		RepeaterList [tank] = Repeater (tank)
-
 
 # install a signal handler for /FluidType and /Level
 	TheBus = dbus.SystemBus()
