@@ -1,6 +1,12 @@
 This software will allow a NMEA2000 tank system that reports multiple tanks
 to display properly
 
+WARNING: TANKREPEATER SHOULD NOT BE RUN ON VENUS OS V2.70~5 OR LATER
+Venus OS now properly handles multiple tanks from the same NMEA2000 device
+Running TankRepeater on those systems may have side effects.
+
+In previous verions of Venus OS:
+
 The stock Venus code expects only a single tank from each tank system, 
 so it displays constantly changing values and fluids.
 

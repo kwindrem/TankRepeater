@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# NOTE: TankRepeater should NOT be run on Venus OS v2.70~12 or any future version
+# Venus now natively supports NMEA2000 tank systems that report multiple tanks
+# Running TankRepeater could create side effects like duplicating a tank
+
 # This module creates a dBus tank 'repeater' for handling NMEA2000 tank sensor systems that report more than one tank
 # While written for the SeeLevel system, it may work for other CanBus sensors that report multiple tanks.
 # The Venus NMEA2000 dBus services assume only one tank (aka sensor aka fluid type) per external device

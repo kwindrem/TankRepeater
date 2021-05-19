@@ -29,12 +29,6 @@ actionText=""
     
 source "/data/SetupHelper/CommonResources"
 
-if [ $scriptAction == 'EXIT' ] ; then
-    exit
-fi
-
-checkFileSets
-
 #### end of lines to include SetupHelper
 
 #### running manually and OK to proceed - prompt for input
@@ -42,7 +36,7 @@ if [ $scriptAction == 'NONE' ] ; then
     echo
     echo "The Tank Repeater provides a stable display for"
     echo "NMEA2000 tank systems that report multiple tanks"
-
+    echo
     standardActionPrompt
 fi
 
@@ -80,14 +74,29 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
         ps -l | grep TankRepeater | grep -v -e grep -e $$  | awk '{print $3}' | xargs kill > /dev/null 2>&1
     fi
 
-    dBusService="/Settings/Devices/TankRepeater/IncomingTankService"
-    serviceName=$(dbus -y com.victronenergy.settings "$dBusService" GetValue)
-    if [ $serviceName != "''" ] ; then
-        logMessage unhiding original Tank dBus service
-        dbus -y com.victronenergy.settings "$dBusService" SetValue "" > /dev/null 2>&1
-        restartGui=true
-    fi
+echo $pkgFileSets
 
+    if [ -f "$fileSet"/NOT_COMPATIBLE ]; then
+        logMessage "removing all TankRepeater dBus settings"
+        dbus -y com.victronenergy.settings /Settings RemoveSettings\
+            '%[ "Devices/TankRepeater/IncomingTankService", "Devices/TankRepeater/IncomingTankProductId",\
+                "Devices/TankRepeater/Tank0/CustomName", "Devices/TankRepeater/Tank1/CustomName",\
+                "Devices/TankRepeater/Tank2/CustomName", "Devices/TankRepeater/Tank3/CustomName",\
+                "Devices/TankRepeater/Tank4/CustomName", "Devices/TankRepeater/Tank5/CustomName",\
+                "Devices/TankRepeater/Tank6/CustomName", "Devices/TankRepeater/Tank7/CustomName",\
+                "Devices/TankRepeater/Tank8/CustomName", "Devices/TankRepeater/Tank9/CustomName",\
+                "Devices/TankRepeater/Tank10/CustomName", "Devices/TankRepeater/Tank11/CustomName",\
+                "Devices/TankRepeater/Tank12/CustomName", "Devices/TankRepeater/Tank13/CustomName",\
+                "Devices/TankRepeater/Tank8/CustomName", "Devices/TankRepeater/Tank9/CustomName",\
+              ]' > /dev/null
+    else
+        serviceName=$(dbus -y com.victronenergy.settings "/Settings/Devices/TankRepeater/IncomingTankService" GetValue)
+        if [ $serviceName != "''" ] ; then
+            logMessage "unhiding original Tank dBus service"
+        fi
+        dbus -y com.victronenergy.settings /Settings RemoveSettings\
+            '%[ "Devices/TankRepeater/IncomingTankService", "Devices/TankRepeater/IncomingTankProductId" ]' > /dev/null
+        fi
     restoreActiveFile "$overviewMobileFile"
 fi
 
