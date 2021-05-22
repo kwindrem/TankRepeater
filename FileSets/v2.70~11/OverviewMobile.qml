@@ -1,17 +1,15 @@
+// This file has been modified to support NMEA2000 sensors that report multiple tanks
+// The tank column will hide the real sensor's dBus service because it's information changes
+// Search for // TANK REPEATER to find changes
+// Also, find optional changes in TileText.qml which is part of the GuiMods package
+
 import QtQuick 1.1
 import com.victron.velib 1.0
 import "utils.js" as Utils
 
-// changes to handle SeeLevel NMEA2000 tank sensor:
-// Ignore over the real SeeLevel dBus service because it's information changes
-
-// Search for //////// SeeLevel to find sections to modify
-
-// Also, see changes in TileText.qml
-
-// When a tank is empty or nearly so, the red bar graph can't be seen, so the tank fullness text now turns red also
-
 OverviewPage {
+// TANK REPEATER - added the following line
+        property string incomingTankServiceName: ""
 	id: root
 
 	property variant sys: theSystem
@@ -29,9 +27,7 @@ OverviewPage {
 										   "Possible reasons are \"Overruled by remote\" is not enabled or " +
 										   "an assistant is preventing the adjustment. Please, check " +
 										   "the inverter configuration with VEConfigure.")
-
 	property int numberOfMultis: 0
-
 	property string vebusPrefix: ""
 
 	// Keeps track of which button on the bottom row is active
@@ -130,16 +126,26 @@ OverviewPage {
 		id: logoTile
 
 		color: "#575748"
-
 		height: 120
-		Image {
-			source: "image://theme/mobile-builder-logo"
-			anchors.centerIn: parent
-		}
 		anchors {
 			left: pwColumn.right
 			right: tanksColum.left
 			top: parent.top
+		}
+
+		MbIcon {
+			x: 1
+			y: 1
+			// see below, so the svg instead of a png if there is a 1x1 image
+			visible: customImage.sourceSize.width === 1 && customImage.sourceSize.height === 1
+			iconId: "mobile-builder-logo-svg"
+		}
+
+		// The uploaded png, the default is a 1x1 transparent pixel now.
+		Image {
+			id: customImage
+			source: "image://theme/mobile-builder-logo"
+			anchors.centerIn: parent
 		}
 	}
 
@@ -212,17 +218,13 @@ OverviewPage {
 				font.pixelSize: 30
 			},
 			TileText {
-				text: speed.valid ? getValue() : speed.text
-				visible: speed.valid
+				property VeQuickItem gpsService: VeQuickItem { uid: "dbus/com.victronenergy.system/GpsService" }
+				property VeQuickItem speed: VeQuickItem { uid: Utils.path("dbus/", gpsService.value, "/Speed") }
+				property VeQuickItem speedUnit: VeQuickItem { uid: "dbus/com.victronenergy.settings/Settings/Gps/SpeedUnit" }
 
-				VBusItem {
-					id: speed
-					bind: Utils.path("com.victronenergy.gps", "/Speed")
-				}
-				VBusItem {
-					id: speedUnit
-					bind: Utils.path(settingsBindPreffix, "/Settings/Gps/SpeedUnit")
-				}
+				text: speed.value === undefined ? "" : getValue()
+				visible: speed.value !== undefined && speedUnit.value !== undefined
+
 				function getValue()
 				{
 					if (speedUnit.value === "km/h")
@@ -249,18 +251,30 @@ OverviewPage {
 		property int tileHeight: Math.ceil(height / Math.max(count, 2))
 		width: 134
 		interactive: false // static tiles
-
 		model: tanksModel
 		delegate: TileTank {
 			width: tanksColum.width
 			height: tanksColum.tileHeight
-            pumpBindPrefix: root.pumpBindPreffix
+			pumpBindPrefix: root.pumpBindPreffix
+			compact: tanksModel.count > (pumpButton.pumpEnabled ? 4 : 5)
+			Connections {
+				target: scrollTimer
+				onTriggered: doScroll()
+			}
 		}
 
 		anchors {
 			top: root.top
-			bottom: acModeButton.top
+			bottom: pumpButton.pumpEnabled ? acModeButton.top : acModeButton.bottom
 			right: root.right
+		}
+
+		// Synchronise tank name text scroll start
+		Timer {
+			id: scrollTimer
+			interval: 15000
+			repeat: true
+			running: root.active && tanksModel.count > 4
 		}
 
 		Tile {
@@ -291,7 +305,7 @@ OverviewPage {
 		}
 
 		Keys.onRightPressed: {
-			if (buttonIndex < 2)
+			if (buttonIndex < (pumpButton.pumpEnabled ? 2 : 1))
 				buttonIndex++
 
 			event.accepted = true
@@ -316,7 +330,7 @@ OverviewPage {
 		bind: Utils.path(vebusPrefix, "/Ac/ActiveIn/CurrentLimit")
 		title: qsTr("AC CURRENT LIMIT")
 		color: containsMouse && !editMode ? "#d3d3d3" : "#A8A8A8"
-		width: show ? 160 : 0
+		width: pumpButton.pumpEnabled ? 160 : 173
 		fontPixelSize: 14
 		unit: "A"
 		readOnly: currentLimitIsAdjustable.value !== 1 || numberOfMultis > 1
@@ -362,20 +376,21 @@ OverviewPage {
 		anchors.bottom: parent.bottom
 		property variant texts: { 4: qsTr("OFF"), 3: qsTr("ON"), 1: qsTr("CHARGER ONLY") }
 		property int value: mode.valid ? mode.value : 3
-		property bool reset: false
+		property int shownValue: applyAnimation2.running ? applyAnimation2.pendingValue : value
+
 		isCurrentItem: (buttonIndex == 1)
 		focus: root.active && isCurrentItem
 
 		editable: true
 		readOnly: !modeIsAdjustable.valid || modeIsAdjustable.value !== 1 || numberOfMultis > 1
-		width: 160
+		width: pumpButton.pumpEnabled ? 160 : 173
 		height: 45
 		color: acModeButtonMouseArea.containsPressed ? "#d3d3d3" : "#A8A8A8"
 		title: qsTr("AC MODE")
 
 		values: [
 			TileText {
-				text: modeIsAdjustable.valid && numberOfMultis === 1 ? qsTr("%1").arg(acModeButton.texts[acModeButton.value]) : qsTr("NOT AVAILABLE")
+				text: modeIsAdjustable.valid && numberOfMultis === 1 ? qsTr("%1").arg(acModeButton.texts[acModeButton.shownValue]) : qsTr("NOT AVAILABLE")
 			}
 		]
 
@@ -393,7 +408,6 @@ OverviewPage {
 				return
 			}
 
-
 			if (modeIsAdjustable.value === 0) {
 				if (dmc.valid)
 					toast.createToast(noAdjustableByDmc, 5000)
@@ -404,20 +418,19 @@ OverviewPage {
 				return
 			}
 
-			reset = true
-			applyAnimation2.restart()
-			reset = false
-			switch(value) {
+			switch (shownValue) {
 			case 4:
-				value--
+				applyAnimation2.pendingValue = 3
 				break;
 			case 3:
-				value = 1
+				applyAnimation2.pendingValue = 1
 				break;
 			case 1:
-				value = 4
+				applyAnimation2.pendingValue = 4
 				break;
 			}
+
+			applyAnimation2.restart()
 		}
 
 		MouseArea {
@@ -443,6 +456,9 @@ OverviewPage {
 
 		SequentialAnimation {
 			id: applyAnimation2
+
+			property int pendingValue
+
 			NumberAnimation {
 				target: timerRect2
 				property: "width"
@@ -471,7 +487,10 @@ OverviewPage {
 				property: "width"
 				value: 0
 			}
-			onCompleted: if (!acModeButton.reset) mode.setValue(acModeButton.value)
+
+			ScriptAction { script: mode.setValue(applyAnimation2.pendingValue) }
+
+			PauseAnimation { duration: 1000 }
 		}
 	}
 
@@ -485,6 +504,8 @@ OverviewPage {
 		property int value: 0
 		property bool reset: false
 		property bool pumpEnabled: pumpRelay.value === 3
+
+		show: pumpEnabled
 		isCurrentItem: (buttonIndex == 2)
 		focus: root.active && isCurrentItem
 
@@ -590,12 +611,9 @@ OverviewPage {
 	{
 		var name = service.name
 		if (service.type === DBusService.DBUS_SERVICE_TANK) {
-
-//////// SeeLevel - add this
-            var seeLevelServiceName = seeLevelName.valid ? seeLevelName.value : ""
-            if (service.name !== seeLevelServiceName) // hide N2K SeeLevel dBus object
-//////// SeeLevel - end add this
-				tanksModel.append({serviceName: service.name})
+// TANK REPEATER - added the following line
+          if (service.name !== incomingTankServiceName)
+			tanksModel.append({serviceName: service.name})
 		}
 		if (service.type === DBusService.DBUS_SERVICE_MULTI) {
 			numberOfMultis++
@@ -607,6 +625,8 @@ OverviewPage {
 	// Check available services to find tank sesnsors
 	function discoverTanks()
 	{
+// TANK REPEATER - added the following line
+        incomingTankServiceName = incomingTankName.valid ? incomingTankName.value : ""
 		tanksModel.clear()
 		for (var i = 0; i < DBusServices.count; i++) {
 			if (DBusServices.at(i).type === DBusService.DBUS_SERVICE_TANK) {
@@ -639,8 +659,7 @@ OverviewPage {
 
 	VBusItem { id: dmc; bind: Utils.path(vebusPrefix, "/Devices/Dmc/Version") }
 	VBusItem { id: bms; bind: Utils.path(vebusPrefix, "/Devices/Bms/Version") }
-//////// SeeLevel - add this
-    VBusItem { id: seeLevelName;
-        bind: Utils.path(settingsBindPreffix, "/Settings/Devices/TankRepeater/SeeLevelService") }
-//////// SeeLevel - end add this
+// TANK REPEATER - added the following 2 lines
+    VBusItem { id: incomingTankName;
+        bind: Utils.path(settingsBindPreffix, "/Settings/Devices/TankRepeater/IncomingTankService") }
 }

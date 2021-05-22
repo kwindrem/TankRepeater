@@ -18,6 +18,12 @@ qmlDir=/opt/victronenergy/gui/qml
 overviewMobileFile="$qmlDir/OverviewMobile.qml"
 reasonMessageFile="$qmlDir/SystemReasonMessage.qml"
 
+# version that obsoletes TankRepeater
+# TankRepeater should not be run STARTING with this version
+# CommonResources will set scriptAction to UNINSTALL
+# and prevent installation if Venus version is at this version or later
+obsoleteVersion="v2.70~12"
+
 # log file for this package (if any)
 # leave null ("") if there isn't one
 packageLogFile="/var/log/TankRepeater/current"
