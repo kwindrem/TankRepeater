@@ -53,14 +53,8 @@ if [ $scriptAction == 'INSTALL' ] ; then
 
     updateActiveFile "$overviewMobileFile"
 
-    service="/service/TankRepeater"
-    if [ ! -e "$service" ]; then
-        logMessage "starting repeater service"
-        ln -s $scriptDir/service "$service"
-    elif ! $runningAtBoot; then
-        logMessage "restarting repeater service"
-        svc -t "$service"
-    fi
+    installService $packageName
+
     if $filesUpdated ; then
         restartGui=true
     fi
@@ -71,16 +65,8 @@ fi
 if [ $scriptAction == 'UNINSTALL' ] ; then
     logMessage "++ Uninstalling repeater"
 
-    # remove and stop repeater service
-    # exclude process names that include this script's PID ($$)
-    # so this startup script isn't killed in the process!
-    if [ -e /service/TankRepeater ]; then
-        logMessage "removing repeater service"
-        rm -rf /service/TankRepeater
-        ps -l | grep TankRepeater | grep -v -e grep -e $$  | awk '{print $3}' | xargs kill > /dev/null 2>&1
-    fi
+    removeService $packageName
 
-echo $pkgFileSets
 
     if [ -f "$fileSet"/NOT_COMPATIBLE ]; then
         logMessage "removing all TankRepeater dBus settings"
@@ -93,7 +79,6 @@ echo $pkgFileSets
                 "Devices/TankRepeater/Tank8/CustomName", "Devices/TankRepeater/Tank9/CustomName",\
                 "Devices/TankRepeater/Tank10/CustomName", "Devices/TankRepeater/Tank11/CustomName",\
                 "Devices/TankRepeater/Tank12/CustomName", "Devices/TankRepeater/Tank13/CustomName",\
-                "Devices/TankRepeater/Tank8/CustomName", "Devices/TankRepeater/Tank9/CustomName",\
               ]' > /dev/null
     else
         serviceName=$(dbus -y com.victronenergy.settings "/Settings/Devices/TankRepeater/IncomingTankService" GetValue)
