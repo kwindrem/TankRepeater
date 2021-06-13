@@ -67,8 +67,7 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
 
     removeService $packageName
 
-
-    if [ -f "$fileSet"/NOT_COMPATIBLE ]; then
+    if $notCompatible; then
         logMessage "removing all TankRepeater dBus settings"
         dbus -y com.victronenergy.settings /Settings RemoveSettings\
             '%[ "Devices/TankRepeater/IncomingTankService", "Devices/TankRepeater/IncomingTankProductId",\
