@@ -1,42 +1,34 @@
 #!/bin/bash
 
-# this script provides the following modificaitons:
-#   move Settings and Notifications to the top of the list man page
-#   hides the Tiles Overview
-#   replaces the Mobile Overview with an enhanced version
+# setup Tank Repeater mechanism
+# NMEA2000 tank senders that report multiple tanks appear as a single tank in VenusOS
+# and ends up being displayed as a constantly changing set of values (one set for each tank)
+# The Tank Repeater splits the incoming tank into separate dBus services
+# and hides the original, producing stable display
 #
-# each of these modifications is optional and can be selected
-#   at install time
+# When running from the command line this script asks the user a serise of questions about
+# what needs to be done
 #
-# Note: both Enhanced Mobile Overview and hiding the Tile Overview modify main.qml
-# so order of operations is important.
-# The code also relies on a second request to backup an active file will not touch an existing backup
+# This script makes use of SetupHelper, a separate package to streamline code in this script
+# and automate reinstallation following a Venus software update which overwrites the modifications
+# made here. SetupHelper must be installed before running this script.
 
+# Venus files that need to be updated to activeate this package
 qmlDir=/opt/victronenergy/gui/qml
-deviceListFile="$qmlDir/PageMain.qml"
-mainPagesFile="$qmlDir/main.qml"
-overviewMobileEnhancedFile="$qmlDir/OverviewMobileEnhanced.qml"
+overviewMobileFile="$qmlDir/OverviewMobile.qml"
 reasonMessageFile="$qmlDir/SystemReasonMessage.qml"
-overviewAcValues="$qmlDir/OverviewAcValues.qml"
-objectAcConnection="$qmlDir/ObjectAcConnection.qml"
-overviewHub="$qmlDir/OverviewHub.qml"
-overviewHubEnhanced="$qmlDir/OverviewHubEnhanced.qml"
-overviewSolarCharger="$qmlDir/OverviewSolarCharger.qml"
-tileTankFile="$qmlDir/TileTank.qml"
-powerGaugeFile="$qmlDir/PowerGauge.qml"
-powerGaugeBatteryFile="$qmlDir/PowerGaugeBattery.qml"
-multiFile="$qmlDir/Multi.qml"
-inverterPopupFile="$qmlDir/InverterModePopUp.qml"
-acCurrentLimitPopUpFile="$qmlDir/AcCurrentLimitPopUp.qml"
-tileTempFile="$qmlDir/TileTemp.qml"
-hubDataFile="$qmlDir/HubData.qml"
-marqueeFile="$qmlDir/Marquee.qml"
-tileFile="$qmlDir/Tile.qml"
 
-settingsDisplayFile="$qmlDir/PageSettingsDisplay.qml"
-guiModsFile="$qmlDir/PageSettingsGuiMods.qml"
-gaugesFile="$qmlDir/PageSettingsGuiModsGauges.qml"
-versionsFile="$qmlDir/PageSettingsGuiModsVersions.qml"
+# version that obsoletes TankRepeater
+# TankRepeater should not be run STARTING with this version
+# CommonResources will set scriptAction to UNINSTALL
+# and prevent installation if Venus version is at this version or later
+obsoleteVersion="v2.70~12"
+
+# log file for this package (if any)
+# leave null ("") if there isn't one
+packageLogFile="/var/log/TankRepeater/current"
+
+actionText=""
 
 #### following lines incorporate SetupHelper utilities into this script
 # Refer to the SetupHelper ReadMe file for details.
@@ -47,179 +39,55 @@ source "/data/SetupHelper/CommonResources"
 
 #### running manually and OK to proceed - prompt for input
 if [ $scriptAction == 'NONE' ] ; then
-    # display innitial message
     echo
-    echo "This package modifies the GUI in several areas"
-    echo "Refer to the ReadMe for an explaination of each modification"
-    echo "Installation enables all modificaions by default"
-    echo "  however each modificaiton can be enabled/disabled in the Settings Display menus"
-
+    echo "The Tank Repeater provides a stable display for"
+    echo "NMEA2000 tank systems that report multiple tanks"
+    echo
     standardActionPrompt
 fi
 
-#### installing
+#### here to do the actual work
+
 if [ $scriptAction == 'INSTALL' ] ; then
+    logMessage "++ Installing repeater"
 
-    # create dbus Settings if they haven't been set previously
-    # if one setting exists, assume they are all there
-    # NOTE: if new settings are added in the future, change test for that one
-    # to avoid creating that new parameter !!!!
-    dbus-send --system --print-reply=literal --dest=com.victronenergy.settings /Settings/GuiMods/TimeFormat\
-                com.victronenergy.BusItem.GetValue &> /dev/null
-    if (( $? != 0 )); then
-        logMessage "creating GuiMods Settings"
-        dbus -y com.victronenergy.settings /Settings AddSettings\
-            '%[{"path": "/GuiMods/GaugeLimits/PeakPower", "default":3000.0},\
-            {"path":"/GuiMods/GaugeLimits/CautionPower", "default":2000.0},\
-            {"path":"/GuiMods/GaugeLimits/ContiuousPower", "default":1000.0},\
-            {"path":"/GuiMods/GaugeLimits/AcOutputMaxPower", "default":0.0},\
-            {"path":"/GuiMods/GaugeLimits/PvChargerMaxPower", "default":0.0},\
-            {"path":"/GuiMods/GaugeLimits/BatteryMaxDischargeCurrent", "default":100.0},\
-            {"path":"/GuiMods/AcCurrentLimit/Preset1", "default":10},\
-            {"path":"/GuiMods/AcCurrentLimit/Preset2", "default":20},\
-            {"path":"/GuiMods/AcCurrentLimit/Preset3", "default":30},\
-            {"path":"/GuiMods/AcCurrentLimit/Preset4", "default":50},\
-            {"path":"/GuiMods/TemperatureScale", "default":1},\
-            {"path":"/GuiMods/ShortenTankNames", "default":1},\
-            {"path":"/GuiMods/UseEnhancedMobileOverview", "default":1},\
-            {"path":"/GuiMods/UseEnhancedFlowOverview", "default":1},\
-            {"path":"/GuiMods/ShowEnhancedFlowOverviewTanks", "default":1},\
-            {"path":"/GuiMods/ShowEnhancedFlowOverviewTemps", "default":1},\
-            {"path":"/GuiMods/ShowGauges", "default":1},\
-            {"path":"/GuiMods/ShowTileOverview", "default":1},\
-            {"path":"/GuiMods/MoveSettings", "default":1},\
-            {"path":"/GuiMods/TimeFormat", "default":1} ]' > /dev/null
+    updateActiveFile "$overviewMobileFile"
+
+    installService $packageName
+
+    if $filesUpdated ; then
+        restartGui=true
     fi
-
-    # move setup options to Settings
-    if [ -f "$setupOptionsDir/optionsSet" ]; then
-        if [ -f "$setupOptionsDir/useEnhancedOverview" ] \
-                || [ -f "$setupOptionsDir/moveSettings" ] \
-                || [ -f "$setupOptionsDir/hideTileOverview" ] \
-                || [ -f "$setupOptionsDir/enhancedFlow" ]; then
-            logMessage "moving setup options to GuiMods Settings"
-            
-            if [ -f "$setupOptionsDir/useEnhancedOverview" ]; then
-                setSetting 1 /Settings/GuiMods/UseEnhancedMobileOverview
-            else
-                setSetting 0 /Settings/GuiMods/UseEnhancedMobileOverview
-            fi
-            if [ -f "$setupOptionsDir/hideTileOverview" ]; then
-                setSetting 1 /Settings/GuiMods/ShowTileOverview
-            else
-                setSetting 0 /Settings/GuiMods/ShowTileOverview
-            fi
-            if [ -f "$setupOptionsDir/enhancedFlow" ]; then
-                dbus -y com.victronenergy.settings /Settings/GuiMods/UseEnhancedFlowOverview SetValue 1 &> /dev/null
-                moveSetting "$setupOptionsDir/inverterPeakPower" /Settings/InverterLimits/PeakPower /Settings/GuiMods/GaugeLimits/PeakPower
-                moveSetting "$setupOptionsDir/inverterCautionPower" /Settings/InverterLimits/PeakCautionPowerPower /Settings/GuiMods/GaugeLimits/CautionPower
-                moveSetting "$setupOptionsDir/inverterContiuousPower" /Settings/InverterLimits/ContiuousPower /Settings/GuiMods/GaugeLimits/ContiuousPower
-                moveSetting "$setupOptionsDir/systemPowerLimit" /Settings/InverterLimits/OutputPowerLimit /Settings/GuiMods/GaugeLimits/AcOutputMaxPower
-                moveSetting "$setupOptionsDir/maxDischargeCurrent" /Settings/SystemSetup/MaxDischargeCurrent /Settings/GuiMods/GaugeLimits/BatteryMaxDischargeCurrent
-                moveSetting "$setupOptionsDir/pvChargerMaxPower" /Settings/PvCharger/MaxPower /Settings/GuiMods/GaugeLimits/PvChargerMaxPower
-                if [ -f "$setupOptionsDir/acCurrentLimitPresets" ]; then
-                    read acCurrentLimitPreset1 acCurrentLimitPreset2 acCurrentLimitPreset3 acCurrentLimitPreset4 <<< $(cat "$setupOptionsDir/acCurrentLimitPresets")
-                    setSetting acCurrentLimitPreset1 /Settings/GuiMods/AcCurrentLimit/Preset1
-                    setSetting acCurrentLimitPreset2 /Settings/GuiMods/AcCurrentLimit/Preset2
-                    setSetting acCurrentLimitPreset3 /Settings/GuiMods/AcCurrentLimit/Preset3
-                    setSetting acCurrentLimitPreset4 /Settings/GuiMods/AcCurrentLimit/Preset4
-                else 
-                    moveSetting "" /Settings/InverterLimits/AcCurrentLimit/Preset1 /Settings/GuiMods/AcCurrentLimit/Preset1
-                    moveSetting "" /Settings/InverterLimits/AcCurrentLimit/Preset1 /Settings/GuiMods/AcCurrentLimit/Preset2
-                    moveSetting "" /Settings/InverterLimits/AcCurrentLimit/Preset1 /Settings/GuiMods/AcCurrentLimit/Preset3
-                    moveSetting "" /Settings/InverterLimits/AcCurrentLimit/Preset1 /Settings/GuiMods/AcCurrentLimit/Preset4
-                fi
-            else
-                dbus -y com.victronenergy.settings /Settings/GuiMods/UseEnhancedFlowOverview SetValue 0 > /dev/null
-            fi
- 
-             # remove unused setup options (now in Settings)
-            rm -f "$setupOptionsDir/useEnhancedOverview"
-            rm -f "$setupOptionsDir/enhancedFlow"
-            rm -f "$setupOptionsDir/hideTileOverview"
-            rm -f "$setupOptionsDir/moveSettings"
-            rm -f "$setupOptionsDir/acCurrentLimitPresets"
-            rm -f "$setupOptionsDir/inverterCautionPower"
-            rm -f "$setupOptionsDir/inverterContiuousPower"
-            rm -f "$setupOptionsDir/inverterPeakPower"
-            rm -f "$setupOptionsDir/maxDischargeCurrent"
-            rm -f "$setupOptionsDir/pvChargerMaxPower"
-            rm -f "$setupOptionsDir/shortenTankNames"
-            rm -f "$setupOptionsDir/systemPowerLimit"
-            rm -f "$setupOptionsDir/temperatureScale"
-            rm -f "$setupOptionsDir/acCurrentLimitPresets"
-
-             # remove old Settings
-            dbus -y com.victronenergy.settings /Settings RemoveSettings\
-                    '%["InverterLimits/PeakPower", "InverterLimits/ContiuousPower",\
-                    "InverterLimits/CautionPower", "InverterLimits/OutputPowerLimit",\
-                    "SystemSetup/MaxDischargeCurrent",\
-                    "InverterLimits/AcCurrentLimit/Preset1", "InverterLimits/AcCurrentLimit/Preset2",\
-                    "InverterLimits/AcCurrentLimit/Preset3", "InverterLimits/AcCurrentLimit/Preset4",\
-                    "PvCharger/MaxPower" ]' > /dev/null
-
-        fi
-    fi
-        
-    logMessage "installing GuiMods files"
-    updateActiveFile "$deviceListFile"
-    updateActiveFile "$mainPagesFile"
-    updateActiveFile "$overviewMobileEnhancedFile"
-    updateActiveFile "$reasonMessageFile"
-    updateActiveFile "$overviewAcValues"
-    updateActiveFile "$objectAcConnection"
-    updateActiveFile "$overviewHubEnhanced"
-    updateActiveFile "$hubDataFile"
-    updateActiveFile "$overviewSolarCharger"
-    updateActiveFile "$powerGaugeFile"
-    updateActiveFile "$powerGaugeBatteryFile"
-    updateActiveFile "$multiFile"
-    updateActiveFile "$inverterPopupFile"
-    updateActiveFile "$acCurrentLimitPopUpFile"
-    updateActiveFile "$tileTankFile"
-    updateActiveFile "$tileTempFile"
-    updateActiveFile "$settingsDisplayFile"
-    updateActiveFile "$guiModsFile"
-    updateActiveFile "$gaugesFile"
-    updateActiveFile "$versionsFile"
-    updateActiveFile "$marqueeFile"
-    updateActiveFile "$tileFile"
-    # clean up from previous versions
-    restoreActiveFile "$overviewHub"
-    
-    logMessage "++ Package installed"
 fi
 
-
-# uninstalling - check scriptAction again
+# #### uninstalling - check scriptAction again
 # if an install step failed package needs to be removed
 if [ $scriptAction == 'UNINSTALL' ] ; then
-    restoreActiveFile "$deviceListFile"
-    restoreActiveFile "$mainPagesFile"
-    restoreActiveFile "$overviewMobileEnhancedFile"
-    restoreActiveFile "$reasonMessageFile"
-    restoreActiveFile "$overviewAcValues"
-    restoreActiveFile "$objectAcConnection"
-    restoreActiveFile "$overviewHubEnhanced"
-    restoreActiveFile "$hubDataFile"
-    restoreActiveFile "$overviewSolarCharger"
-    restoreActiveFile "$tileTankFile"
-    restoreActiveFile "$tileTempFile"
-    restoreActiveFile "$powerGaugeFile"
-    restoreActiveFile "$powerGaugeBatteryFile"
-    restoreActiveFile "$multiFile"
-    restoreActiveFile "$inverterPopupFile"
-    restoreActiveFile "$acCurrentLimitPopUpFile"
-    restoreActiveFile "$settingsDisplayFile"
-    restoreActiveFile "$guiModsFile"
-    restoreActiveFile "$gaugesFile"
-    restoreActiveFile "$versionsFile"
-    restoreActiveFile "$marqueeFile"
-    restoreActiveFile "$tileFile"
+    logMessage "++ Uninstalling repeater"
 
-    restoreActiveFile "$overviewHub"
+    removeService $packageName
 
-    logMessage "++ Package uninstalled"
+    if $notCompatible; then
+        logMessage "removing all TankRepeater dBus settings"
+        dbus -y com.victronenergy.settings /Settings RemoveSettings\
+            '%[ "Devices/TankRepeater/IncomingTankService", "Devices/TankRepeater/IncomingTankProductId",\
+                "Devices/TankRepeater/Tank0/CustomName", "Devices/TankRepeater/Tank1/CustomName",\
+                "Devices/TankRepeater/Tank2/CustomName", "Devices/TankRepeater/Tank3/CustomName",\
+                "Devices/TankRepeater/Tank4/CustomName", "Devices/TankRepeater/Tank5/CustomName",\
+                "Devices/TankRepeater/Tank6/CustomName", "Devices/TankRepeater/Tank7/CustomName",\
+                "Devices/TankRepeater/Tank8/CustomName", "Devices/TankRepeater/Tank9/CustomName",\
+                "Devices/TankRepeater/Tank10/CustomName", "Devices/TankRepeater/Tank11/CustomName",\
+                "Devices/TankRepeater/Tank12/CustomName", "Devices/TankRepeater/Tank13/CustomName",\
+              ]' > /dev/null
+    else
+        serviceName=$(dbus -y com.victronenergy.settings "/Settings/Devices/TankRepeater/IncomingTankService" GetValue)
+        if [ $serviceName != "''" ] ; then
+            logMessage "unhiding original Tank dBus service"
+        fi
+        dbus -y com.victronenergy.settings /Settings RemoveSettings\
+            '%[ "Devices/TankRepeater/IncomingTankService", "Devices/TankRepeater/IncomingTankProductId" ]' > /dev/null
+        fi
+    restoreActiveFile "$overviewMobileFile"
 fi
 
 if $filesUpdated ; then
@@ -228,3 +96,5 @@ fi
 
 # thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
 endScript
+
+
